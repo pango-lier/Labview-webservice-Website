@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>Vstech-Xu ly anh cong nghiep.</title>
+    <base href="http://127.0.0.1:8001/processing_images/">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.12"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/0.21.1/axios.min.js"
+        integrity="sha512-bZS47S7sPOxkjU/4Bt0zrhEtWx0y0CRkhEp8IckzK+ltifIIE9EMIMTuT/mEzoIMewUINruDBIR/jJnbguonqQ=="
+        crossorigin="anonymous"></script>
+    <!-- Add this to <head> -->
+
+    <!-- Load required Bootstrap and BootstrapVue CSS -->
+    <link type="text/css" rel="stylesheet" href="//unpkg.com/bootstrap/dist/css/bootstrap.min.css" />
+    <link type="text/css" rel="stylesheet" href="//unpkg.com/bootstrap-vue@latest/dist/bootstrap-vue.min.css" />
+
+    <style>
+        #app {
+            margin-top: 10px;
+        }
+
+        .navbar-brand h1 {
+            color: blue;
+            font-size: 25px;
+            display: inline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <nav class="navbar ">
+            <div class="navbar-brand" style="text-align: center;margin: 0 auto;">
+                <img src="img/logo48.png" />
+                <h1>Xử lý ảnh công nghiệp - Vstech</h1>
+                <a href="https://www.xulyanhcongnghiep.com/"
+                    style="text-align: center;color: chocolate;display: block;">
+                    #xulyanhcongnghiep.com
+                </a>
+            </div>
+        </nav>
+    </div>
+    <div id="app">
+        <div class="main container mt-3 " style="text-align: center;margin: 0 auto;">
+            <div class="mb-2" v-bind:class="alert" role="alert">
+                {{message}} <a v-if="statusFile!=='timeout'" href="/processing_images"
+                    title="Click to refresh">#Refresh</a>
+                <a style="color: red;cursor: pointer;" v-else-if="statusFile==='timeout'" v-on:click.prevent="getFiles"
+                    title="Try again here">#Try again here</a>
+            </div>
+            <div>
+                <input v-on:change="getFiles" v-bind:disabled='disableFile' accept="image/jpeg, image/png"
+                    class="btn btn-danger" type="file" name="images[]">
+                <input v-on:click="getFiles" class="btn btn-danger" type="hidden" value="refresh" />
+                <input v-show="buttonResponse" v-on:click="responseResult" class="btn" v-bind:class='buttonColor'
+                    type="button" value="Xác nhận" />
+            </div>
+            <div class="mt-2" v-for="(image, i) in imageReponses">
+                <p style="color: blue;font-size: 30px;font-weight: bold;line-height: 30px;">{{image.result}}</p>
+                <img v-bind:src="image.filePath" v-bind:key="i" style="max-width: 100%;height: auto;display: block;margin-left: auto;
+                    margin-right: auto" />
+            </div>
+
+        </div>
+        <div class="mt-5"></div>
+    </div>
+    <script>
+        var app = new Vue({
+            el: '#app',
+            data: {
+                requestInterval: null,
+                requestTimeout: null,
+                imageReponses: [{ filePath: 'img/backgroud2.png', result: 'CVS V2.0' }],
+                message: 'Please chose a image from your computer !',
+                alert: 'alert-light',
+                buttonUpload: 'Upload images',
+                images: null,
+                disableFile: false,
+                statusFile: 'none',//havedfile//uploading//uploaded//error/invailed
+                buttonResponse: false,
+                buttonColor: 'btn-primary',
+                _token: '',
+            },
+            methods: {
+                responseResult: function () {
+                    if (!this.buttonResponse) return;
+                    let self = this;
+                    const data = new FormData();
+                    let json = {
+                        _token: this._token,
+                        _status: 'completed',
+                        result: this.imageReponses[0].result,
+                        filePath: this.imageReponses[0].filePath,
+                    };
+                    //  console.log(json);
+                    json = JSON.stringify(json);
+                    data.append('result', json);
+                    axios.post("button_response", data, {
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    }).then(function () {
+                        console.log("Button OK");
+                        self.buttonColor = 'btn-success';
+                    });
+                },
+                uploadFile: function (e) {
+                    let self = this;
+                    this.statusFile = 'uploading';
+                    console.log(this.statusFile);
+                    const data = new FormData();
+                    for (let i = 0; i < this.images.length; i++) {
+                        data.append('images' + i.toString(), this.images[i]);
+                    }
+                    axios.post("upload", data, {
+                        headers: {
+                            'Content-Type': 'multipart/form-data'
+                        }
+                    }).then(function (response) {
+                        this._token = response.data._token;
+                        self.statusFile = "uploaded";
+                        console.log(self.statusFile);
+                        self.waitFileReponse();
+                    })
+                        .catch(function () {
+                            self.statusFile = "error";
+                            console.log(self.statusFile);
+                        });
+
+                },
+                waitFileReponse() {
+                    let self = this;
+                    self.requestTimeout = setTimeout(function () {
+                        self.statusFile = "timeout";
+                        // console.log('timeout');
+                        clearInterval(self.requestInterval);
+                    }, this.images.length * 70000);
+                    self.requestInterval = setInterval(function () {
+                        const data = new FormData();
+                        let json = {
+                            _token: this._token,
+                            _command: 'get_file',
+                        };
+                        json = JSON.stringify(json);
+                        data.append('result', json);
+                        axios.post('get_img_info', data, {
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        }).then(function (response) {
+                            // console.log(response.data);
+                            if (response.data._status == 'processed') {
+                                clearTimeout(self.requestTimeout);
+                                clearInterval(self.requestInterval);
+                                self.statusFile = "completed";
+                                var images = [];
+                                for (let i = 0; i < response.data.data.length; i++) {
+                                    let fileResponse = response.data.data[i].fileResponse;
+                                    let image = { filePath: '', result: '' };
+                                    image.filePath = fileResponse.filePath;
+                                    image.result = fileResponse.result;
+                                    images.push(image);
+                                }
+                                self.imageReponses = images;
+                            }
+                        })
+                    }, 1500);
+                },
+                getFiles(e) {
+                    let self = this;
+                    console.log(self.statusFile);
+                    if (self.statusFile != 'timeout') {
+                        this.statusFile = 'none';
+                        var files = e.target.files;
+                        // console.log(files);
+                        if (files.length <= 0) return;
+                        for (let i = 0; i < files.length; i++) {
+                            let file = files[i];
+                            if (file.type && file.type.indexOf('image') === -1) {
+                                //   console.log('Invailed File is not an image.', file.type, file);
+                                this.statusFile = "invalid";
+                                return;
+                            }
+                        }
+                        this.images = files;
+                    }
+                    this.statusFile = "ready";
+
+                    this.disableFile = true;
+                    this.buttonResponse = false;
+
+                    self.requestTimeout = setTimeout(function () {
+                        self.statusFile = "timeout";
+                        console.log('timeout');
+                        clearInterval(self.requestInterval);
+                    }, this.images.length * 70000);
+                    self.requestInterval = setInterval(function () {
+                        const data = new FormData();
+                        let json = {
+                            _token: this._token,
+                            _command: 'get_status',
+                        };
+                        json = JSON.stringify(json);
+                        data.append('result', json);
+                        axios.post('get_img_info', data, {
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        }).then(function (response) {
+
+                            if (response.data._status != 'processing' && typeof response.data._status !== 'undefined') {
+                                clearTimeout(self.requestTimeout);
+                                clearInterval(self.requestInterval);
+                                self.uploadFile();
+
+                            }
+                        });
+                    }, 800);
+                }
+
+            },
+            watch: {
+                statusFile: function (val) {
+                    let self = this;
+                    switch (this.statusFile) {
+                        case "none":
+                            this.message = "Please chose a image from your computer !";
+                            this.alert = 'alert-light';
+                            break;
+                        case "ready":
+                            this.message = "Ready to upload images!.";
+                            this.alert = 'alert-primary';
+                            this.buttonColor = 'btn-primary';
+                            break;
+                        case "uploading":
+                            this.message = "The images is uploading !";
+                            this.alert = 'alert-info';
+                            break;
+                        case "uploaded":
+                            this.message = "The Images is processing. Please wait minutes !.";
+                            this.alert = 'alert-info';
+                            break;
+                        case "completed":
+                            this.message = "The images is processed !";
+                            this.alert = 'alert-success';
+                            this.disableFile = false;
+                            this.buttonResponse = true;
+                            break;
+                        case "invalid":
+                            this.message = 'Image MEM  is invalid !';
+                            this.alert = 'alert-warning';
+                            this.disableFile = false;
+                            break;
+                        case "error":
+                            this.message = "Upload images is error !";
+                            this.alert = 'alert-danger';
+                            this.disableFile = false;
+                            break;
+                        case "timeout":
+                            this.message = "Upload images is Timeout !";
+                            this.alert = 'alert-danger';
+                            this.disableFile = false;
+                            break;
+                    }
+                },
+
+            }
+        })
+    </script>
+</body>
+
+</html>
