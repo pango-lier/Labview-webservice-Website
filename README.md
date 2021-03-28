@@ -14,6 +14,7 @@ To
 ```
 * Start Labview webservice : processing_images webservice in my application .
 * Run http://200.182.217.216:8001/processing_images/
+* * 200.182.217.216:8001 is your IP address NAT and 8001 is port .
 # Open NAT (port)
 You need Open NAT (port) your computer run Labview Webservice
 # Change IP address
